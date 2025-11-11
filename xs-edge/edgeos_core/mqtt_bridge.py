@@ -40,6 +40,7 @@ class MQTTBridge:
             asyncio.create_task(self._listen_for_rules())
 
             log.info("[Bridge] Connected to broker ✅")
+            await self.send_registration()
         except MqttError as e:
             log.error(f"[Bridge] Connection failed: {e}")
             self.running = False
@@ -110,6 +111,28 @@ class MQTTBridge:
                     await self.rules_sync.handle_update(msg.payload.decode(), self.edge_id)
         except Exception as e:
             log.error(f"[Bridge] Rule listener error: {e}")
+
+    # ───────────────────────────────────────────────
+
+    async def send_registration(self, version="1.0"):
+        """Announce this edge to controller."""
+        try:
+            payload = {
+                "edge_id": self.edge_id,
+                "version": version,
+                "timestamp": asyncio.get_event_loop().time()
+            }
+            async with Client(
+                self.broker, self.port,
+                transport="websockets", websocket_path="/mqtt"
+            ) as client:
+                client._client_id = self.edge_id.encode()
+                log.debug(f"[Bridge] Publishing registration to topic: xsedge/register")
+                await client.publish("xsedge/register", json.dumps(payload).encode(), qos=1, retain=True)
+                log.info(f"[Bridge] Registration sent → {payload}")
+        except Exception as e:
+            log.error(f"[Bridge] Registration failed: {e}")
+
 
     # ───────────────────────────────────────────────
     async def disconnect(self):

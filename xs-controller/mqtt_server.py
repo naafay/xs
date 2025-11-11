@@ -28,6 +28,28 @@ class MQTTServer:
 
                     # Direct iteration over client.messages
                     async for msg in client.messages:
+                        log.debug(f"[MQTT] Incoming topic: {msg.topic}")
+
+                        if str(msg.topic) == "xsedge/register":
+                            try:
+                                payload = json.loads(msg.payload.decode())
+                                edge_id = payload.get("edge_id")
+                                version = payload.get("version", "unknown")
+                                from models import Edge
+                                from sqlmodel import Session, select
+                                with Session(engine) as s:
+                                    edge = s.exec(select(Edge).where(Edge.edge_id == edge_id)).first()
+                                    if not edge:
+                                        edge = Edge(edge_id=edge_id, version=version)
+                                        s.add(edge)
+                                    edge.last_seen = datetime.datetime.utcnow()
+                                    edge.status = "ONLINE"
+                                    s.commit()
+                                log.info(f"[REGISTER] Edge {edge_id} registered (v{version})")
+                                continue  # skip normal telemetry saving for this message
+                            except Exception as e:
+                                log.error(f"[REGISTER] Error processing registration: {e}")
+                                continue
                         try:
                             payload = json.loads(msg.payload.decode())
                             edge_id = payload.get("edge_id")
