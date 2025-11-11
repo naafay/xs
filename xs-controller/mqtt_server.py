@@ -1,0 +1,68 @@
+import asyncio, json, logging
+from aiomqtt import Client, MqttError
+from sqlmodel import Session
+from models import Telemetry, engine
+
+log = logging.getLogger("MQTTServer")
+
+class MQTTServer:
+    def __init__(self, broker="broker.hivemq.com", port=8000):
+        self.broker, self.port = broker, port
+
+    async def listen_and_store(self, ws_clients:set):
+        """
+        Listen to MQTT messages from xsedge/# and store telemetry.
+        Compatible with aiomqtt >= 2.3.
+        """
+        while True:
+            try:
+                async with Client(
+                    self.broker,
+                    self.port,
+                    transport="websockets",
+                    websocket_path="/mqtt"
+                ) as client:
+
+                    await client.subscribe("xsedge/#")
+                    log.info(f"[MQTT] Subscribed xsedge/# on {self.broker}:{self.port}")
+
+                    # Direct iteration over client.messages
+                    async for msg in client.messages:
+                        try:
+                            payload = json.loads(msg.payload.decode())
+                            edge_id = payload.get("edge_id")
+                            data = payload.get("data", {})
+                            topic = payload.get("topic", "unknown")
+                            await self._save(edge_id, topic, data)
+                            await self._broadcast(ws_clients, payload)
+                        except Exception as e:
+                            log.error(f"[MQTT] payload error: {e}")
+
+            except MqttError as e:
+                log.error(f"[MQTT] broker error {e}, retrying in 5 s")
+                await asyncio.sleep(5)
+            except Exception as e:
+                log.error(f"[MQTT] general error: {e}")
+                await asyncio.sleep(5)
+
+    async def _save(self, edge_id, topic, data):
+        """Persist telemetry to SQLite."""
+        log.info(f"[MQTT] saved telemetry from {edge_id} topic={topic} data={data}")
+        
+        if not edge_id:
+            return
+        with Session(engine) as s:
+            rec = Telemetry(edge_id=edge_id, topic=topic, data=json.dumps(data))
+            s.add(rec)
+            s.commit()
+
+    async def _broadcast(self, ws_clients:set, payload):
+        """Push telemetry to connected WebSocket clients."""
+        dead = []
+        for ws in ws_clients:
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                dead.append(ws)
+        for d in dead:
+            ws_clients.discard(d)

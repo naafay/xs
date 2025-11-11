@@ -12,6 +12,8 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logging.getLogger("Rules").setLevel(logging.INFO)
 logging.getLogger("PluginManager").setLevel(logging.INFO)
 
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 # ───────────────────────────────────────────────────────────────
 # INIT SERVICES
 # ───────────────────────────────────────────────────────────────
