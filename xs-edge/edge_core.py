@@ -1,6 +1,7 @@
 import asyncio, logging, os, threading, signal, sys, time
 from dotenv import load_dotenv
 from edgeos_core import data_bus, plugin_manager, rules_engine, local_db, secure_agent, web_api, mqtt_bridge
+from edgeos_core.command_handler import CommandHandler 
 import uvicorn
 
 # ───────────────────────────────────────────────────────────────
@@ -22,25 +23,35 @@ async def init_services():
     db = local_db.DBManager(os.getenv("DB_PATH", "xsedge.db"))
     bus = data_bus.DataBus(db)
 
+    # Create and load Rules Engine first ✅
+    rules = rules_engine.RulesEngine(db)
+    rules.load()
+
     # Optional MQTT bridge setup
     bridge = None
     if os.getenv("MQTT_ENABLED", "false").lower() == "true":
         bridge = mqtt_bridge.MQTTBridge(
-            broker=os.getenv("MQTT_BROKER", "test.mosquitto.org"),
-            port=int(os.getenv("MQTT_PORT", 1883)),
-            edge_id=os.getenv("EDGE_ID", None)
+            broker=os.getenv("MQTT_BROKER", "broker.hivemq.com"),
+            port=int(os.getenv("MQTT_PORT", 8000)),
+            edge_id=os.getenv("EDGE_ID", None),
+            rules_engine=rules,     # ✅ now properly defined
+            bus=bus
         )
+
+        # ✅ create handler after rules exist
+        bridge.command_handler = CommandHandler(rules)
         await bridge.connect()
         await bus.attach_mqtt_bridge(bridge)
 
-    rules = rules_engine.RulesEngine(db)
-    rules.load()
+    # Initialize security and plugin system
     sa = secure_agent.SecureAgent()
     pm = plugin_manager.PluginManager(bus, db, rules, sa)
     await pm.load_all()
 
+    # Create FastAPI app
     app = web_api.create_app(pm, db, rules, sa, bus)
     return app, pm, db, bridge
+
 
 # ───────────────────────────────────────────────────────────────
 # SHUTDOWN

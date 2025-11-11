@@ -1,6 +1,6 @@
-import asyncio, json, logging
+import asyncio, json, logging, datetime
 from aiomqtt import Client, MqttError
-from sqlmodel import Session
+from sqlmodel import Session, select
 from models import Telemetry, engine
 
 log = logging.getLogger("MQTTServer")
@@ -46,15 +46,29 @@ class MQTTServer:
                 await asyncio.sleep(5)
 
     async def _save(self, edge_id, topic, data):
-        """Persist telemetry to SQLite."""
-        log.info(f"[MQTT] saved telemetry from {edge_id} topic={topic} data={data}")
-        
-        if not edge_id:
-            return
-        with Session(engine) as s:
-            rec = Telemetry(edge_id=edge_id, topic=topic, data=json.dumps(data))
-            s.add(rec)
-            s.commit()
+            """Persist telemetry to SQLite."""
+            log.info(f"[MQTT] saved telemetry from {edge_id} topic={topic} data={data}")
+            
+            if not edge_id:
+                return
+            with Session(engine) as s:
+                rec = Telemetry(edge_id=edge_id, topic=topic, data=json.dumps(data))
+                s.add(rec)
+                s.commit()
+
+            # ✅ ACK handling
+            if "ack" in topic:
+                from models_ext import CommandLog
+                with Session(engine) as s:
+                    cmd_id = data.get("cmd_id")
+                    entry = s.exec(select(CommandLog).where(CommandLog.cmd_id == cmd_id)).first()
+                    if entry:
+                        entry.status = "ACK"
+                        entry.result = data.get("result", "")
+                        entry.ts_ack = datetime.datetime.utcnow()
+                        s.add(entry)
+                        s.commit()
+                        log.info(f"[ACK] Command {cmd_id} acknowledged: {entry.result}")
 
     async def _broadcast(self, ws_clients:set, payload):
         """Push telemetry to connected WebSocket clients."""

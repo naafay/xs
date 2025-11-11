@@ -6,6 +6,8 @@ from routes import edges, telemetry, commands, auth
 from utils.security import SecureAgent
 from mqtt_server import MQTTServer
 from models import engine
+from routes import rules
+
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -23,6 +25,7 @@ app = FastAPI(
 app.include_router(edges.router, prefix="/edges", tags=["Edges"])
 app.include_router(telemetry.router, prefix="/telemetry", tags=["Telemetry"])
 app.include_router(commands.router, prefix="/commands", tags=["Commands"])
+app.include_router(rules.router, prefix="/rules", tags=["Rules"])
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 
 ws_clients = set()
