@@ -1,0 +1,4 @@
+[
+  {"name": "AlwaysTriggerLatency", "if": "network_latency>10", "then": "alert"},
+  {"name": "AlwaysTriggerBattery", "if": "energy_level>10", "then": "alert"}
+]

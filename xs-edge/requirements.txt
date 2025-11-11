@@ -1,0 +1,24 @@
+# ──────────── Core Runtime ────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.31.0
+python-dotenv>=1.0.1
+
+# ──────────── Data & Storage ────────────
+sqlmodel>=0.0.22
+aiosqlite>=0.20.0
+PyYAML>=6.0.2
+aiofiles>=23.2.1
+
+# ──────────── Messaging & Edge Connectivity ────────────
+asyncio-mqtt>=0.16.2
+paho-mqtt>=2.1.0
+
+# ──────────── System Utilities ────────────
+psutil>=6.0.0        # for system metrics, CPU/memory, etc.
+ping3>=4.0.5         # for latency measurement
+pyjwt>=2.9.0         # for token-based authentication
+
+# ──────────── Optional / Diagnostics ────────────
+watchdog>=4.0.1      # for file change detection
+requests>=2.32.3     # for external HTTP calls
+colorama>=0.4.6      # for colored console logs (cross-platform)

@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  xs-edge-runtime:
+    build: .
+    container_name: xs-edge-runtime
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${API_PORT}:${API_PORT}"
+    healthcheck:
+      test: ["CMD","curl","-f","http://localhost:${API_PORT}/status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
